@@ -4,4 +4,5 @@ import java.util.Map;
 
 interface NodeTaskRunner {
 	void execute(String args, Map<String,String> environment) throws TaskRunnerException;
+    String executeWithResult(String args, Map<String, String> environment) throws TaskRunnerException;
 }

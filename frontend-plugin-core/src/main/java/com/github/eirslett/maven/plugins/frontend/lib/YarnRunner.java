@@ -2,6 +2,7 @@ package com.github.eirslett.maven.plugins.frontend.lib;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import com.github.eirslett.maven.plugins.frontend.lib.ProxyConfig.Proxy;
 
@@ -43,5 +44,10 @@ final class DefaultYarnRunner extends YarnTaskExecutor implements YarnRunner {
         }
 
         return arguments;
+    }
+
+    @Override
+    public String executeWithResult(String args, Map<String, String> environment) throws TaskRunnerException {
+        throw new RuntimeException("not implemented");
     }
 }

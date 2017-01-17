@@ -1,0 +1,14 @@
+{
+  "name": "test-handlebars",
+  "description": "test npm modules",
+  "version": "1.0.0",
+    "dependencies": {
+
+    "handlebars-helpers": "0.5.8",
+    "lodash": "2.2.1"
+},
+
+  "scripts": {
+	"start": "node app.js"
+  }
+}

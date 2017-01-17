@@ -2,8 +2,8 @@ package com.github.eirslett.maven.plugins.frontend.lib;
 
 import java.io.File;
 
-public final class FrontendPluginFactory {
-    
+public class FrontendPluginFactory {
+
     private static final Platform defaultPlatform = Platform.guess();
     private static final String DEFAULT_CACHE_PATH = "cache";
 
@@ -32,10 +32,10 @@ public final class FrontendPluginFactory {
     public YarnInstaller getYarnInstaller(ProxyConfig proxy) {
         return new YarnInstaller(getInstallConfig(), new DefaultArchiveExtractor(), new DefaultFileDownloader(proxy));
     }
-    
+
     public BowerRunner getBowerRunner(ProxyConfig proxy) {
         return new DefaultBowerRunner(getExecutorConfig(), proxy);
-    }    
+    }
 
     public JspmRunner getJspmRunner() {
         return new DefaultJspmRunner(getExecutorConfig());

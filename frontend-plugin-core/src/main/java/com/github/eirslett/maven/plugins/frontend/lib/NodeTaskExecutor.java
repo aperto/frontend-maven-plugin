@@ -14,10 +14,10 @@ import static com.github.eirslett.maven.plugins.frontend.lib.Utils.normalize;
 import static com.github.eirslett.maven.plugins.frontend.lib.Utils.prepend;
 import java.util.Map;
 
-abstract class NodeTaskExecutor {
+abstract class NodeTaskExecutor implements NodeTaskRunner {
     private static final String DS = "//";
     private static final String AT = "@";
-    
+
     private final Logger logger;
     private final String taskName;
     private final String taskLocation;
@@ -63,6 +63,20 @@ abstract class NodeTaskExecutor {
             throw new TaskRunnerException(taskToString(taskName, arguments) + " failed.", e);
         }
     }
+
+    public final String executeWithResult(String args, Map<String, String> environment) throws TaskRunnerException {
+        final String absoluteTaskLocation = getAbsoluteTaskLocation();
+        final List<String> arguments = getArguments(args);
+        logger.info("Running " + taskToString(taskName, arguments) + " in " + config.getWorkingDirectory());
+
+        try {
+            final String result = new NodeExecutor(config, prepend(absoluteTaskLocation, arguments), environment).executeAndGetResult();
+            return result;
+        } catch (ProcessExecutionException e) {
+            throw new TaskRunnerException(taskToString(taskName, arguments) + " failed.", e);
+        }
+    }
+
 
     private String getAbsoluteTaskLocation() {
         String location = normalize(taskLocation);
