@@ -9,13 +9,10 @@ import org.apache.commons.io.IOUtils;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import javax.annotation.meta.When;
-
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 public class TestNpmDependenciesMojo {
 
