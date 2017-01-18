@@ -32,10 +32,10 @@ public class TestNpmDependenciesMojo {
         NpmDependenciesMojo testMojo = new NpmDependenciesMojo() {
             @Override
             protected String getPackageDirectoryList(FrontendPluginFactory factory, ProxyConfig proxyConfig) throws TaskRunnerException {
-                return readFile("testNpm/directoryList.txt");
+                return readFile("testnpm/directoryList.txt");
             }
             protected String getPackageTreeJson(FrontendPluginFactory factory, ProxyConfig proxyConfig) throws TaskRunnerException {
-                return readFile("testNpm/packageTree.json");
+                return readFile("testnpm/packageTree.json");
             };
             @Override
             protected void copyDependencies(String fullDirectoryList, int startline, int numLines) {
