@@ -34,6 +34,9 @@ import java.util.TreeSet;
 @Mojo(name = "extractDependencies", defaultPhase = LifecyclePhase.PROCESS_RESOURCES)
 public class NpmDependenciesMojo extends AbstractNpmMojo {
 
+    // can be debugged using "mvnDebug frontend:extractDependencies -Dfrontend.npmDependencies.npmPackages=grunt-assemble -Dfrontend.npmDependencies.targetDir=hbs/node_modules"
+    // given a project that has "grunt-assemble" in its node_modules
+
     private final Logger logger = LoggerFactory.getLogger(getClass());;
 
     private int lineCounter = 0;
