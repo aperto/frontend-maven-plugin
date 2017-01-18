@@ -24,6 +24,7 @@
                     <goal>jspm</goal>
                     <goal>ember</goal>
                     <goal>webpack</goal>
+                    <goal>extractDependencies</goal>
                 </goals>
             </pluginExecutionFilter>
             <action>
