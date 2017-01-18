@@ -34,9 +34,9 @@
     </licenses>
 
     <scm>
-        <url>https://github.com/eirslett/frontend-maven-plugin</url>
-        <connection>scm:git:https://github.com/eirslett/frontend-maven-plugin.git</connection>
-        <developerConnection>scm:git:git@github.com:eirslett/frontend-maven-plugin.git</developerConnection>
+        <url>https://github.com/aperto/frontend-maven-plugin</url>
+        <connection>scm:git:https://github.com/aperto/frontend-maven-plugin.git</connection>
+        <developerConnection>scm:git:git@github.com:aperto/frontend-maven-plugin.git</developerConnection>
     </scm>
 
     <developers>
@@ -46,6 +46,20 @@
             <email>eiriksletteberg@gmail.com</email>
         </developer>
     </developers>
+
+    <distributionManagement>
+        <repository>
+            <id>aperto.nexus.releases</id>
+            <name>aperto.nexus.releases</name>
+            <url>https://maven.aperto.de/nexus/content/repositories/handlebars.releases/</url>
+        </repository>
+        <snapshotRepository>
+            <id>aperto.nexus.snapshots</id>
+            <name>aperto.nexus.snapshots</name>
+            <url>https://maven.aperto.de/nexus/content/repositories/handlebars.snapshots/</url>
+            <uniqueVersion>false</uniqueVersion>
+        </snapshotRepository>
+    </distributionManagement>
 
     <modules>
         <module>frontend-plugin-core</module>
