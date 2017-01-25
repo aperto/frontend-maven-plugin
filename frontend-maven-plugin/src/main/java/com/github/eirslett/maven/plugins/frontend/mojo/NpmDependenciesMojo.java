@@ -188,20 +188,18 @@ public class NpmDependenciesMojo extends AbstractNpmMojo {
         }
 
         lineCounter++;
-        if (!root.dependencies.isEmpty()) {
-            for (NpmPackage dependency : root.dependencies) {
+        for (NpmPackage dependency : root.dependencies) {
 
-                if (addLeavesToQueue && dependency.dependencies.isEmpty()) {
-                    packageNames.add(dependency.toString());
-                }
+            if (addLeavesToQueue && dependency.dependencies.isEmpty()) {
+                packageNames.add(dependency.toString());
+            }
 
-                if (dependency.name.equals(packageNameToSearch) && (versionToSearch==null || dependency.version.equals(versionToSearch))) {
-                    return dependency;
-                } else {
-                    NpmPackage found = depthFirstSearchDependency(dependency, findNpmPackage, addLeavesToQueue);
-                    if (found != null) {
-                        return found;
-                    }
+            if (dependency.name.equals(packageNameToSearch) && (versionToSearch==null || dependency.version.equals(versionToSearch))) {
+                return dependency;
+            } else {
+                NpmPackage found = depthFirstSearchDependency(dependency, findNpmPackage, addLeavesToQueue);
+                if (found != null) {
+                    return found;
                 }
             }
         }
