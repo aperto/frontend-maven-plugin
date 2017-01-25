@@ -10,8 +10,6 @@ import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
-import org.apache.wink.json4j.JSONException;
-import org.apache.wink.json4j.OrderedJSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,10 +20,14 @@ import java.io.StringReader;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
+import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
+import java.util.Stack;
 import java.util.TreeSet;
+import java.util.concurrent.ArrayBlockingQueue;
 
 /**
  * Extract given npm packages and their dependencies from node_modules and copy them to given destination
@@ -39,7 +41,6 @@ public class NpmDependenciesMojo extends AbstractNpmMojo {
 
     private final Logger logger = LoggerFactory.getLogger(getClass());;
 
-    private int lineCounter = 0;
 
     @Parameter(readonly = true, defaultValue = "${project}")
     private MavenProject project;
@@ -53,10 +54,83 @@ public class NpmDependenciesMojo extends AbstractNpmMojo {
     @Parameter(property = "frontend.npmDependencies.targetDir", required = true)
     protected String targetDir;
 
+    protected int lineCounter = 0;
+    Queue<String> packageNames = new ArrayBlockingQueue<>(1000);
+
+    class NpmPackage {
+        final String name;
+        final String version;
+        final List<NpmPackage> dependencies = new LinkedList<>();
+
+        public NpmPackage(String name, String version) {
+            this.name = name;
+            this.version = version;
+        }
+        @Override
+        public String toString() {
+            return name + "@" + version;
+        }
+    }
+
+    NpmPackage parseAsciiTree(String asciiTree) {
+        NpmPackage root = null;
+        List<String> lines = getLines(asciiTree);
+        String lastLine = lines.get(lines.size()-1);
+        if (lastLine.trim().equals("")) {
+            // remove empty line at end
+            lines.remove(lines.size() - 1);
+        }
+        Stack<NpmPackage> stack = new Stack<>();
+
+        for (String line : lines) {
+            int nameStart = findPackageNameStart(line);
+
+            int versionSeparator = line.indexOf("@", nameStart);
+            String packageName = line.substring(nameStart, versionSeparator);
+            String version = line.substring(versionSeparator + 1);
+
+            // levels are indented by 2 chars
+            int level = nameStart / 2;
+
+            NpmPackage npmPackage = new NpmPackage(packageName, version);
+
+            if (stack.isEmpty()) {
+                // this is the root package
+                root = npmPackage;
+            } else {
+                // pop to parent of current level
+                while (stack.size() >= level ) {
+                    stack.pop();
+                }
+
+                NpmPackage parent = stack.peek();
+                parent.dependencies.add(npmPackage);
+            }
+
+            stack.push(npmPackage);
+        }
+        return root;
+    }
+
+    private int findPackageNameStart(String line) {
+        int nameStart;
+        int index = line.indexOf("─ ");
+        if (index == -1) {
+            index = line.indexOf("┬ ");
+        }
+        if (index > -1) {
+            nameStart = index + 2;
+        } else {
+            // first line in file starts with containing package
+            nameStart = 0;
+        }
+        return nameStart;
+    }
+
     /**
      * Reduce to top-level folders within topmost node_modules folder
      */
-    protected Set<String> flattenToToplevelFolders(List<String> directories) {
+    protected Set<String> flattenToToplevelFolders(Collection<String> directories) {
         Set<String> result = new TreeSet<>();
 
         String[] arr = new String[directories.size()];
@@ -77,84 +151,103 @@ public class NpmDependenciesMojo extends AbstractNpmMojo {
         return result;
     }
 
-    protected void copyDependencies(String fullDirectoryList, int startline, int numLines) {
-        Build build = project.getModel().getBuild();
-
-        BufferedReader bufReader = new BufferedReader(new StringReader(fullDirectoryList));
+    protected List<String> getLines(String string) {
+        BufferedReader bufReader = new BufferedReader(new StringReader(string));
         List<String> lines = new ArrayList<>(10000);
         String line = null;
         try {
             while ((line = bufReader.readLine()) != null) {
                 lines.add(line);
             }
-            List<String> directories = lines.subList(startline, startline + numLines + 1);
-
-            Set<String> topLevelFolders = flattenToToplevelFolders(directories);
-            for (String directory : topLevelFolders) {
-                File from = new File(directory);
-                File to = Paths.get(build.getDirectory(), targetDir, from.getName()).toFile();
-                logger.info("extractDependencies: copying " + from + " to " + to);
-                org.apache.maven.shared.utils.io.FileUtils.copyDirectoryStructure(from, to);
-            }
-
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        return lines;
     }
 
-    private OrderedJSONObject depthFirstSearchDependency(OrderedJSONObject root, String npmPackage) {
-        try {
-            if (root.containsKey("dependencies")) {
-                OrderedJSONObject dependencies = (OrderedJSONObject) root.getJSONObject("dependencies");
-                Iterator<String> dependencyNames = dependencies.getOrder();
-                while (dependencyNames.hasNext()) {
-                    String dependencyName = dependencyNames.next();
-                    lineCounter++;
-                    OrderedJSONObject dependency = (OrderedJSONObject) dependencies.getJSONObject(dependencyName);
-                    if (dependencyName.equals(npmPackage)) {
-                        return dependency;
-                    } else {
-                        OrderedJSONObject found = depthFirstSearchDependency(dependency, npmPackage);
-                        if (found != null) {
-                            return found;
-                        }
+    protected void copyDependencies(Set<String> directories) throws IOException {
+        Build build = project.getModel().getBuild();
+
+        for (String directory : directories) {
+            File from = new File(directory);
+            File to = Paths.get(build.getDirectory(), targetDir, from.getName()).toFile();
+            logger.info("extractDependencies: copying " + from + " to " + to);
+            org.apache.maven.shared.utils.io.FileUtils.copyDirectoryStructure(from, to);
+        }
+    }
+
+    protected NpmPackage depthFirstSearchDependency(NpmPackage root, String findNpmPackage, boolean addLeavesToQueue) {
+        String packageNameToSearch = null;
+        String versionToSearch = null;
+        int index;
+        if (findNpmPackage!=null && (index = findNpmPackage.indexOf("@")) > -1) {
+            packageNameToSearch = findNpmPackage.substring(0, index);
+            versionToSearch = findNpmPackage.substring(index + 1);
+        } else {
+            packageNameToSearch = findNpmPackage;
+        }
+
+        lineCounter++;
+        if (!root.dependencies.isEmpty()) {
+            for (NpmPackage dependency : root.dependencies) {
+
+                if (addLeavesToQueue && dependency.dependencies.isEmpty()) {
+                    packageNames.add(dependency.toString());
+                }
+
+                if (dependency.name.equals(packageNameToSearch) && (versionToSearch==null || dependency.version.equals(versionToSearch))) {
+                    return dependency;
+                } else {
+                    NpmPackage found = depthFirstSearchDependency(dependency, findNpmPackage, addLeavesToQueue);
+                    if (found != null) {
+                        return found;
                     }
                 }
             }
-        } catch (JSONException e) {
-            throw new RuntimeException(e);
         }
         return null;
     }
 
     @Override
     protected void executeNpm(FrontendPluginFactory factory, ProxyConfig proxyConfig) throws TaskRunnerException {
-        // obtain package tree as json
-        String packageTreeJson = getPackageTreeJson(factory, proxyConfig);
-
+        // obtain package tree as ASCII art
+        String asciiTree = getPackageTreeAscii(factory, proxyConfig);
+        // lines in directoryList correspond to lines in package tree ASCII art, and tell us what directory NPM resolves the logical packages to
         String directoryList = getPackageDirectoryList(factory, proxyConfig);
 
-        logger.info("extractDependencies: copying npm packages " + Arrays.toString(npmPackages) + " to " + targetDir);
-        for (String npmPackageName : npmPackages) {
+        logger.info("extractDependencies: copying npm packages " + Arrays.toString(npmPackages) + " and their dependencies to " + targetDir);
+
+        List<String> allDirectories = getLines(directoryList);
+        Set<String> resultDirectories = new TreeSet<>();
+
+        final NpmPackage root = parseAsciiTree(asciiTree);
+
+        for (String packageName : npmPackages) {
+            packageNames.add(packageName);
+        }
+        while (!packageNames.isEmpty()) {
+            String npmPackageName = packageNames.remove();
             lineCounter = 0;
-            OrderedJSONObject root;
-            try {
-                // must use OrderedJSONObject so order in packageTreeJson DFS
-                // traversal will be same as in directoryList
-                root = new OrderedJSONObject(packageTreeJson);
-            } catch (JSONException e) {
-                throw new RuntimeException(e);
-            }
 
             // depth-first-search package, and count nodes traversed
-            OrderedJSONObject npmPackage = depthFirstSearchDependency(root, npmPackageName);
+            NpmPackage npmPackage = depthFirstSearchDependency(root, npmPackageName, false);
             // remember line of found package
             int startLine = lineCounter;
             lineCounter = 0;
-            // now count nodes of package's dependencies
-            depthFirstSearchDependency(npmPackage, null);
+            // now count nodes of package's dependencies, and append all leave packages to our packageNames Queue
+            // (a leaf package may turn out to have defined dependencies somewhere earlier in the tree)
+            depthFirstSearchDependency(npmPackage, null, true);
             int numLines = lineCounter;
-            copyDependencies(directoryList, startLine, numLines);
+
+            List<String> subList = allDirectories.subList(startLine, startLine + numLines);
+            resultDirectories.addAll(subList);
+        }
+
+        Set<String> topLevelFolders = flattenToToplevelFolders(resultDirectories);
+        try {
+            copyDependencies(topLevelFolders);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -163,8 +256,8 @@ public class NpmDependenciesMojo extends AbstractNpmMojo {
         return directoryList;
     }
 
-    protected String getPackageTreeJson(FrontendPluginFactory factory, ProxyConfig proxyConfig) throws TaskRunnerException {
-        String packageTreeJson = factory.getNpmRunner(proxyConfig, getRegistryUrl()).executeWithResult("ls --parseable false --json true", environmentVariables);
+    protected String getPackageTreeAscii(FrontendPluginFactory factory, ProxyConfig proxyConfig) throws TaskRunnerException {
+        String packageTreeJson = factory.getNpmRunner(proxyConfig, getRegistryUrl()).executeWithResult("ls --parseable false --json false", environmentVariables);
         return packageTreeJson;
     }
 
